@@ -54,9 +54,6 @@ public class UnitController : MonoBehaviour
         { UnitType.Gyoku, UnitType.None},
 
     };
-
-    // 成済かどうか
-    public bool isEvolution;
     
     // ユニット選択/非選択のy座標
     public const float SelectUnitY = 1.5f;
@@ -528,7 +525,7 @@ public class UnitController : MonoBehaviour
     }
 
     // 成
-    public void Evolution(bool evolution = true)
+    public void Evolution(bool evolution)
     {
         Vector3 angle = transform.eulerAngles;
 
@@ -543,11 +540,10 @@ public class UnitController : MonoBehaviour
         }
         else
         {
-            this.unitType = oldUnitType;
+            unitType = oldUnitType;
             transform.eulerAngles = getDefaultAngles(player);
         }
 
-        isEvolution = evolution;
     }
 
     // キャプチャされたとき
@@ -575,6 +571,17 @@ public class UnitController : MonoBehaviour
 
         return ret;
     }
+
+    // 成できるかどうか
+    public bool isEvolution()
+    {
+        if (!evolutionTable.ContainsKey(unitType) || evolutionTable[unitType] == UnitType.None)
+        {
+            return false;
+        }
+        return true;
+    }
+
 
 }
 

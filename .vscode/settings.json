@@ -51,5 +51,5 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "shogi.sln"
+    "dotnet.defaultSolution": "Shogi.sln"
 }

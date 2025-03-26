@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using Unity.VisualScripting;
 using System;
+using UnityEngine.SceneManagement;
 
 public class GameSceneDirector : MonoBehaviour
 {
@@ -81,6 +83,15 @@ public class GameSceneDirector : MonoBehaviour
 
     // キャプチャされたユニット
     List<UnitController> caputuredUnits;
+
+    // 敵陣設定
+    const int EnemyLine = 3;
+    List<int>[] enemyLines;
+
+    // CPU
+    const float EnemyWaitTimerMax = 0;
+    float enemyWaitTimer;
+    public static int playerCount = 2;
 
     // Start is called before the first frame update
     void Start()
@@ -172,6 +183,23 @@ public class GameSceneDirector : MonoBehaviour
             }
         }
 
+        // 敵陣設定
+        enemyLines = new List<int>[playerMax];
+        for (int i = 0; i < playerMax; i++)
+        {
+            enemyLines[i] = new List<int>();
+            int rangemin = 0;
+            if (i == 0)
+            {
+                rangemin = boardHeight - EnemyLine;
+            }
+
+            for (int j = 0; j < EnemyLine; j++)
+            {
+                enemyLines[i].Add(rangemin + j);
+            }
+        }
+
         // TurnChangeから始める場合-1
         nowPlayer = -1;
 
@@ -196,6 +224,17 @@ public class GameSceneDirector : MonoBehaviour
         else if (nowMode == Mode.TurnChange)
         {
             TurnChangeMode();
+        }
+        else if (nowMode == Mode.Result)
+        {
+            print("結果"+textResultInfo.text);
+            print("王手しているユニット");
+
+            foreach (var item in GetOuteUnit(units, nowPlayer))
+            {
+                print(item.unitType);
+            }
+            nowMode = Mode.None;
         }
 
         // モードの変更
@@ -274,6 +313,35 @@ public class GameSceneDirector : MonoBehaviour
         {
             // 内部データの更新
             units[oldpos.x, oldpos.y] = null;
+
+            // 成
+            if (unit.isEvolution() && enemyLines[nowPlayer].Contains(tileindex.y))
+            {
+                // 次のターンに移動可能かどうか
+                UnitController[,] copyunits = new UnitController[boardWidth, boardHeight];
+                // 自分以外いないフィールドを作る
+                copyunits[unit.pos.x, unit.pos.y] = unit;
+
+                // cpuもしくは次移動できないなら強制で成
+                if (isCpu || unit.GetMovableTiles(copyunits).Count < 1)
+                {
+                    unit.Evolution(true);
+                }
+                // 成か確認
+                else
+                {
+                    // 成った状態を表示
+                    unit.Evolution(true);
+                    setSelectCursors(unit);
+
+                    // ナビゲーション
+                    textResultInfo.text = "成りますか？";
+                    evolutionApplyButton.gameObject.SetActive(true);
+                    evolutionCancelButton.gameObject.SetActive(true);
+
+                    ret = Mode.WaitEvolution;
+                }
+            }
         }
         else
         {
@@ -293,10 +361,35 @@ public class GameSceneDirector : MonoBehaviour
     // 移動可能範囲の取得
     List<Vector2Int> getMovableTiles(UnitController unit)
     {
+        // 通常の移動範囲
         List<Vector2Int> ret = unit.GetMovableTiles(units);
 
-        // TODO 王手されるかどうか
+        // 王手されるかどうか
+        UnitController[,] copyunits = GetCopyArray(units);
+        if (unit.fieldStatus == FieldStatus.OnBoard)
+        {
+            copyunits[unit.pos.x, unit.pos.y] = null;
+        }
+        int outecount = GetOuteUnit(copyunits, unit.player).Count;
 
+        // 王手を忌避できる場所を返す
+        if (outecount > 0)
+        {
+            ret = new List<Vector2Int>();
+            List<Vector2Int> movabletiles = unit.GetMovableTiles(units);
+            foreach (var item in movabletiles)
+            {
+                // 移動した状態を作る
+                UnitController[,] copyunits2 = GetCopyArray(copyunits);
+                copyunits2[item.x, item.y] = unit;
+                outecount = GetOuteUnit(copyunits2, unit.player, false).Count;
+                if (outecount < 1)
+                {
+                    ret.Add(item);
+                }
+            }
+        }
+        
         return ret;
     }
 
@@ -309,6 +402,54 @@ public class GameSceneDirector : MonoBehaviour
         // Infoの更新
         textTurnInfo.text = "" + (nowPlayer + 1) + "Pの番";
         textResultInfo.text = "";
+
+        // 王手しているユニット
+        List<UnitController> outeunits = GetOuteUnit(units, nowPlayer);
+        bool isoute = 0 < outeunits.Count;
+        if (isoute)
+        {
+            textResultInfo.text = "王手!!";
+        }
+
+        // 500手ルール
+        if (500 < turnCount)
+        {
+            textResultInfo.text = "500手ルール\n" + "引き分け!!";
+        }
+
+        // 自軍が移動可能か調べる
+        int movablecount = 0;
+        foreach (var item in getUnits(nowPlayer))
+        {
+            movablecount += getMovableTiles(item).Count;
+        }
+
+        // 動かせない
+        if (movablecount < 1)
+        {
+            textResultInfo.text = "動かせません\n" + "引き分け!!";
+
+            if (isoute)
+            {
+                textResultInfo.text = "詰み!!\n" + (GetNextPlayer(nowPlayer) + 1)+"Pの勝ち!!";
+            }
+            nextMode = Mode.Result;
+        }
+
+        // CPU判定
+        if (playerCount <= nowPlayer)
+        {
+            isCpu = true;
+            enemyWaitTimer = UnityEngine.Random.Range(0, EnemyWaitTimerMax);
+        }
+
+        // 次が結果表示画面なら
+        if (Mode.Result == nextMode)
+        {
+            textTurnInfo.text = "";
+            rematchButton.gameObject.SetActive(true);
+            titleButton.gameObject.SetActive(true);
+        }
     }
 
     // ユニットとタイル選択
@@ -346,6 +487,39 @@ public class GameSceneDirector : MonoBehaviour
                     }
                     break;
                 }
+            }
+        }
+
+        // CPU処理
+        if (isCpu)
+        {
+            // タイマー消化
+            if (0 < enemyWaitTimer)
+            {
+                enemyWaitTimer -= Time.deltaTime;
+                return ;
+            }
+
+            // ユニット選択
+            if (!selectUnit)
+            {
+                // 全ユニット取得してランダムで選択
+                List<UnitController> allunits = getUnits(nowPlayer);
+                unit = allunits[UnityEngine.Random.Range(0, allunits.Count)];
+                // 移動できないならやり直し
+                if (getMovableTiles(unit).Count < 1)
+                {
+                    unit = null;
+                }
+            }
+            // タイル選択
+            else
+            {
+                // 今回移動可能なタイルをランダムで選択
+                List<GameObject> tiles = new List<GameObject>(movableTiles.Keys);
+                tile = tiles[UnityEngine.Random.Range(0, tiles.Count)];
+                // 持ち物は非表示になっている可能性があるので表示する
+                selectUnit.gameObject.SetActive(true);
             }
         }
 
@@ -498,5 +672,48 @@ public class GameSceneDirector : MonoBehaviour
         
         return ret;
 
+    }
+
+    // 成るボタン
+    public void OnClickEvolutionApply()
+    {
+        nextMode = Mode.TurnChange;
+    }
+
+    // 成らないボタン
+    public void OnClickEvolutionCancel()
+    {
+        selectUnit.Evolution(false);
+        OnClickEvolutionApply();
+    }
+
+    // 指定されたプレイヤー番号の全ユニットを取得する
+    List<UnitController> getUnits(int player)
+    {
+        List<UnitController> ret = new List<UnitController>();
+
+        // 全ユニットのリストを作成
+        List<UnitController> allunits = new List<UnitController>(caputuredUnits);
+        // 2次元配列
+        allunits.AddRange(units);
+        foreach(var item in allunits)
+        {
+            if (!item || player != item.player) continue;
+            ret.Add(item);
+        }
+
+        return ret;
+    }
+
+    // リザルト関数
+    public void OnclickRematch()
+    {
+        SceneManager.LoadScene("MainScene");
+    }
+
+    // リザルトタイトルへ
+    public void OnClickTitle()
+    {
+        SceneManager.LoadScene("TitleScene");
     }
 }
