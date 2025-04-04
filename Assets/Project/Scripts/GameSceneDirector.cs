@@ -91,7 +91,7 @@ public class GameSceneDirector : MonoBehaviour
     // CPU
     const float EnemyWaitTimerMax = 0;
     float enemyWaitTimer;
-    public static int playerCount = 2;
+    public static int playerCount = 0;
 
     // Start is called before the first frame update
     void Start()
@@ -336,6 +336,7 @@ public class GameSceneDirector : MonoBehaviour
 
                     // ナビゲーション
                     textResultInfo.text = "成りますか？";
+                    // ボタンをON
                     evolutionApplyButton.gameObject.SetActive(true);
                     evolutionCancelButton.gameObject.SetActive(true);
 
@@ -415,6 +416,7 @@ public class GameSceneDirector : MonoBehaviour
         if (500 < turnCount)
         {
             textResultInfo.text = "500手ルール\n" + "引き分け!!";
+            nextMode = Mode.Result;
         }
 
         // 自軍が移動可能か調べる

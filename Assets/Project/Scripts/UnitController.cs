@@ -109,7 +109,7 @@ public class UnitController : MonoBehaviour
         {
             pos.y = UnSelectUnitY;
 
-            // 持ち駒の位置は特別
+            // 持ち駒の位置は特別に指定
             if (FieldStatus.Captured == fieldStatus)
             {
                 pos.y = oldPosY;
